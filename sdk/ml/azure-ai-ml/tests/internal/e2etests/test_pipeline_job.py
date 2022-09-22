@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from devtools_testutils import AzureRecordedTestCase, is_live
 import pydash
 import pytest
 
@@ -15,6 +14,7 @@ from azure.ai.ml.constants import AssetTypes, InputOutputModes
 from azure.ai.ml.dsl import pipeline
 from azure.ai.ml.entities import Data, PipelineJob
 from azure.core.exceptions import HttpResponseError
+from azure.core.polling import LROPoller
 
 from .._utils import DATA_VERSION, PARAMETERS_TO_TEST, set_run_settings
 
@@ -47,21 +47,11 @@ def create_internal_sample_dependent_datasets(client: MLClient):
             )
 
 
-@pytest.mark.usefixtures(
-    "recorded_test",
-    "mock_code_hash",
-    "mock_asset_name",
-    "mock_component_hash",
-    "enable_pipeline_private_preview_features",
-    "create_internal_sample_dependent_datasets",
-    "enable_internal_components",
-)
-@pytest.mark.skipif(
-    condition=not is_live(),
-    reason="Works in live mode, does not work in playback"
-)
+@pytest.mark.usefixtures("enable_pipeline_private_preview_features")
+@pytest.mark.usefixtures("create_internal_sample_dependent_datasets")
+@pytest.mark.usefixtures("enable_internal_components")
 @pytest.mark.e2etest
-class TestPipelineJob(AzureRecordedTestCase):
+class TestPipelineJob:
     @classmethod
     def _test_component(cls, node_func, inputs, runsettings_dict, pipeline_runsettings_dict, client):
         @pipeline()
@@ -76,7 +66,9 @@ class TestPipelineJob(AzureRecordedTestCase):
 
         created_pipeline: PipelineJob = client.jobs.create_or_update(dsl_pipeline)
         try:
-            client.jobs.cancel(created_pipeline.name)
+            cancel_poller = client.jobs.begin_cancel(created_pipeline.name)
+            assert isinstance(cancel_poller, LROPoller)
+            assert cancel_poller.result() is None
         except HttpResponseError as ex:
             assert "CancelPipelineRunInTerminalStatus" in str(ex)
 
@@ -124,8 +116,8 @@ class TestPipelineJob(AzureRecordedTestCase):
         runsettings_dict,
         pipeline_runsettings_dict,
     ):
-        component_to_register = load_component(yaml_path, params_override=[{"name": randstr("name")}])
-        component_name = randstr("component_name")
+        component_to_register = load_component(yaml_path, params_override=[{"name": randstr()}])
+        component_name = randstr()
         component_resource = client.components.create_or_update(component_to_register)
 
         created_component = client.components.get(component_name, component_resource.version)
@@ -139,6 +131,7 @@ class TestPipelineJob(AzureRecordedTestCase):
     def test_data_as_node_inputs(
         self,
         client: MLClient,
+        randstr: Callable[[], str],
         yaml_path,
         inputs,
         runsettings_dict,
@@ -168,7 +161,9 @@ class TestPipelineJob(AzureRecordedTestCase):
 
         created_pipeline: PipelineJob = client.jobs.create_or_update(dsl_pipeline)
         try:
-            client.jobs.cancel(created_pipeline.name)
+            cancel_poller = client.jobs.begin_cancel(created_pipeline.name)
+            assert isinstance(cancel_poller, LROPoller)
+            assert cancel_poller.result() is None
         except HttpResponseError as ex:
             assert "CancelPipelineRunInTerminalStatus" in str(ex)
 
@@ -188,7 +183,7 @@ class TestPipelineJob(AzureRecordedTestCase):
         runsettings_dict,
         pipeline_runsettings_dict,
     ):
-        component_func = load_component(yaml_path, params_override=[{"name": randstr("name")}])
+        component_func = load_component(yaml_path, params_override=[{"name": randstr()}])
 
         @pipeline()
         def sub_pipeline_func():
@@ -202,7 +197,9 @@ class TestPipelineJob(AzureRecordedTestCase):
         dsl_pipeline: PipelineJob = pipeline_func()
         set_run_settings(dsl_pipeline.settings, pipeline_runsettings_dict)
         created_pipeline: PipelineJob = client.jobs.create_or_update(dsl_pipeline)
-        client.jobs.cancel(created_pipeline.name)
+        cancel_poller = client.jobs.begin_cancel(created_pipeline.name)
+        assert isinstance(cancel_poller, LROPoller)
+        assert cancel_poller.result() is None
 
     def test_pipeline_with_setting_node_output(self, client: MLClient) -> None:
         component_dir = Path(__file__).parent.parent.parent / "test_configs" / "internal" / "command-component"
@@ -236,7 +233,9 @@ class TestPipelineJob(AzureRecordedTestCase):
         pipeline_job = pipeline_with_command_components(tsv_file="out.tsv", content="1\t2\t3\t4")
 
         pipeline_job = client.jobs.create_or_update(pipeline_job, experiment_name="v15_v2_interop")
-        client.jobs.cancel(pipeline_job.name)
+        cancel_poller = client.jobs.begin_cancel(pipeline_job.name)
+        assert isinstance(cancel_poller, LROPoller)
+        assert cancel_poller.result() is None
 
     def test_pipeline_with_setting_node_output_mode(self, client: MLClient):
         # get dataset
@@ -265,4 +264,6 @@ class TestPipelineJob(AzureRecordedTestCase):
         )
         pipeline_job.settings.default_compute = "cpu-cluster"
         pipeline_job = client.jobs.create_or_update(pipeline_job, experiment_name="v15_v2_interop")
-        client.jobs.cancel(pipeline_job.name)
+        cancel_poller = client.jobs.begin_cancel(pipeline_job.name)
+        assert isinstance(cancel_poller, LROPoller)
+        assert cancel_poller.result() is None

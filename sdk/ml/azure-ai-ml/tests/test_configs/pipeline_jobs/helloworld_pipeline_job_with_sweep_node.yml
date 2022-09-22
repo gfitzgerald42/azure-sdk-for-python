@@ -20,9 +20,7 @@ jobs:
     search_space:
       component_in_number:
         type: choice
-        values:
-          - 1
-          - 2
+        values: [1, 2]
     compute: azureml:gpu-cluster
 
     limits:
@@ -43,7 +41,7 @@ jobs:
         echo Hello World &
         echo ${{inputs.component_in_number}}
       environment: azureml:AzureML-sklearn-0.24-ubuntu18.04-py37-cpu:1
-      code: "../python"
+      code: "./"
       inputs:
         component_in_number:
           description: Am integer
@@ -56,9 +54,7 @@ jobs:
     search_space:
       batch_size:
         type: choice
-        values:
-          - 25
-          - 35
+        values: [25, 35]
       first_layer_neurons:
         type: randint
         upper: 50
@@ -118,9 +114,7 @@ jobs:
     search_space:
       component_in_number:
         type: choice
-        values:
-          - 25
-          - 35
+        values: [ 25, 35 ]
 
     limits:
       max_total_trials: 3

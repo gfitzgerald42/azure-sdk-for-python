@@ -5,6 +5,13 @@ import re
 from enum import Enum
 
 
+class ManagedServiceIdentityType(str, Enum):
+    """Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed)."""
+
+    NONE = "None"
+    SYSTEM_ASSIGNED = "SystemAssigned"
+
+
 class StorageAccountType(str, Enum):
     STANDARD_LRS = "Standard_LRS".lower()
     STANDARD_GRS = "Standard_GRS".lower()
@@ -14,6 +21,11 @@ class StorageAccountType(str, Enum):
     STANDARD_RAGZRS = "Standard_RAGZRS".lower()
     PREMIUM_LRS = "Premium_LRS".lower()
     PREMIUM_ZRS = "Premium_ZRS".lower()
+
+
+# When will other values be allowed?
+class AcrAccountSku(str, Enum):
+    PREMIUM = "Premium".lower()
 
 
 # based on /subscriptions/{SubscriptionId}/resourceGroups/{ResourceGroupName}/

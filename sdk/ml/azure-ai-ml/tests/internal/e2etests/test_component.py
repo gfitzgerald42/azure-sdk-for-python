@@ -5,7 +5,6 @@ import json
 import os.path
 from typing import Callable, Dict, List
 
-from devtools_testutils import AzureRecordedTestCase, set_bodiless_matcher
 import pydash
 import pytest
 
@@ -46,22 +45,15 @@ def load_registered_component(
     return pydash.omit(component_rest_object.properties.component_spec, *omit_fields)
 
 
-@pytest.mark.fixture(autouse=True)
-def bodiless_matching(test_proxy):
-    set_bodiless_matcher()
-
-
-@pytest.mark.usefixtures(
-    "recorded_test", "enable_internal_components", "mock_code_hash", "mock_asset_name", "mock_component_hash"
-)
+@pytest.mark.usefixtures("enable_internal_components")
 @pytest.mark.e2etest
-class TestComponent(AzureRecordedTestCase):
+class TestComponent:
     @pytest.mark.parametrize(
         "yaml_path",
         list(map(lambda x: x[0], PARAMETERS_TO_TEST)),
     )
     def test_component_create(self, client: MLClient, randstr: Callable[[], str], yaml_path: str) -> None:
-        component_name = randstr("component_name")
+        component_name = randstr()
         component_resource = create_component(client, component_name, path=yaml_path)
         assert component_resource.name == component_name
         assert component_resource.code
@@ -78,11 +70,11 @@ class TestComponent(AzureRecordedTestCase):
     def test_component_load(
         self,
         client: MLClient,
-        randstr: Callable[[str], str],
+        randstr: Callable[[], str],
         yaml_path: str,
     ) -> None:
         omit_fields = ["id", "creation_context", "code", "name"]
-        component_name = randstr("component_name")
+        component_name = randstr()
 
         component_resource = create_component(client, component_name, path=yaml_path)
         loaded_dict = load_registered_component(client, component_name, component_resource.version, omit_fields)

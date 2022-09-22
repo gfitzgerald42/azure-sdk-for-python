@@ -3,7 +3,6 @@ from pathlib import Path
 from time import sleep
 from typing import Callable
 
-from devtools_testutils import AzureRecordedTestCase, is_live, set_bodiless_matcher
 import jwt
 import pytest
 
@@ -19,6 +18,7 @@ from azure.ai.ml.entities._job.job import Job
 from azure.ai.ml.exceptions import ValidationException
 from azure.ai.ml.operations._job_ops_helper import _wait_before_polling
 from azure.ai.ml.operations._run_history_constants import JobStatus, RunHistoryConstants
+from azure.core.polling import LROPoller
 
 # These params are logged in ..\test_configs\python\simple_train.py. test_command_job_with_params asserts these parameters are
 # logged in the training script, so any changes to parameter logging in simple_train.py must preserve this logging or change it both
@@ -26,19 +26,9 @@ from azure.ai.ml.operations._run_history_constants import JobStatus, RunHistoryC
 TEST_PARAMS = {"a_param": "1", "another_param": "2"}
 
 
-@pytest.mark.fixture(autouse=True)
-def bodiless_matching(test_proxy):
-    set_bodiless_matcher()
-
-
 @pytest.mark.timeout(600)
-@pytest.mark.usefixtures(
-    "recorded_test",
-    "mock_code_hash",
-    "mock_asset_name",
-    "enable_environment_id_arm_expansion",
-)
-class TestCommandJob(AzureRecordedTestCase):
+@pytest.mark.usefixtures("mock_code_hash")
+class TestCommandJob:
     @pytest.mark.skip(
         "Investigate The network connectivity issue encountered for 'Microsoft.MachineLearningServices'; cannot fulfill the request."
     )
@@ -46,7 +36,7 @@ class TestCommandJob(AzureRecordedTestCase):
     def test_command_job(self, randstr: Callable[[], str], client: MLClient) -> None:
         # TODO: need to create a workspace under a e2e-testing-only subscription and resource group
 
-        job_name = randstr("job_name")
+        job_name = randstr()
         print(f"Creating job {job_name}")
 
         try:
@@ -85,7 +75,7 @@ class TestCommandJob(AzureRecordedTestCase):
     def test_command_job_with_dataset(self, randstr: Callable[[], str], client: MLClient) -> None:
         # TODO: need to create a workspace under a e2e-testing-only subscription and resource group
 
-        job_name = randstr("job_name")
+        job_name = randstr()
         params_override = [{"name": job_name}]
         job = load_job(
             source="./tests/test_configs/command_job/command_job_test_with_local_dataset.yml",
@@ -109,7 +99,7 @@ class TestCommandJob(AzureRecordedTestCase):
     def test_command_job_with_dataset_short_uri(self, randstr: Callable[[], str], client: MLClient) -> None:
         # TODO: need to create a workspace under a e2e-testing-only subscription and resource group
 
-        job_name = randstr("job_name")
+        job_name = randstr()
         params_override = [{"name": job_name}]
         job = load_job(
             source="./tests/test_configs/command_job/command_job_test_with_dataset.yml",
@@ -186,7 +176,7 @@ class TestCommandJob(AzureRecordedTestCase):
     @pytest.mark.timeout(900)
     @pytest.mark.e2etest
     def test_command_job_local(self, randstr: Callable[[], str], client: MLClient) -> None:
-        job_name = randstr("job_name")
+        job_name = randstr()
         try:
             _ = client.jobs.get(job_name)
             print(f"Found existing job {job_name}")
@@ -207,7 +197,7 @@ class TestCommandJob(AzureRecordedTestCase):
     @pytest.mark.e2etest
     @pytest.mark.skip("TODO: 1210641- Re-enable when we switch to runner-style tests")
     def test_command_job_with_params(self, randstr: Callable[[], str], client: MLClient) -> None:
-        job_name = randstr("job_name")
+        job_name = randstr()
         params_override = [{"name": job_name}]
         job: CommandJob = load_job(
             source="./tests/test_configs/command_job/simple_train_test.yml",
@@ -222,7 +212,7 @@ class TestCommandJob(AzureRecordedTestCase):
 
     @pytest.mark.e2etest
     def test_command_job_with_modified_environment(self, randstr: Callable[[], str], client: MLClient) -> None:
-        job_name = randstr("job_name")
+        job_name = randstr()
         params_override = [{"name": job_name}]
         job = load_job(
             source="./tests/test_configs/command_job/command_job_test.yml",
@@ -230,7 +220,7 @@ class TestCommandJob(AzureRecordedTestCase):
         )
         job = client.jobs.create_or_update(job=job)
 
-        job.name = randstr("job_name_2")
+        job.name = randstr()
         job.environment = "AzureML-sklearn-0.24-ubuntu18.04-py37-cpu:1"
 
         job = client.jobs.create_or_update(job=job)
@@ -241,7 +231,7 @@ class TestCommandJob(AzureRecordedTestCase):
     @pytest.mark.e2etest
     @pytest.mark.skip("Investigate why cancel does not record some upload requests of code assets")
     def test_command_job_cancel(self, randstr: Callable[[], str], client: MLClient) -> None:
-        job_name = randstr("job_name")
+        job_name = randstr()
         print(f"Creating job to validate the cancel job operation: {job_name}")
         params_override = [{"name": job_name}]
         job = load_job(
@@ -250,7 +240,9 @@ class TestCommandJob(AzureRecordedTestCase):
         )
         command_job_resource = client.jobs.create_or_update(job=job)
         assert command_job_resource.name == job_name
-        client.jobs.cancel(job_name)
+        cancel_poller = client.jobs.begin_cancel(job_name)
+        assert isinstance(cancel_poller, LROPoller)
+        assert cancel_poller.result() is None
         command_job_resource_2 = client.jobs.get(job_name)
         assert command_job_resource_2.status in (JobStatus.CANCEL_REQUESTED, JobStatus.CANCELED)
 
@@ -259,10 +251,10 @@ class TestCommandJob(AzureRecordedTestCase):
         """Checks that dependencies of the form azureml:name@label are resolved to a version"""
         from uuid import uuid4
 
-        job_name = randstr("job_name")
-        environment_name = randstr("environment_name")
+        job_name = randstr()
+        environment_name = str(uuid4())[:15]
         environment_versions = ["foo", "bar"]
-        data_name = randstr("data_name")
+        data_name = str(uuid4())
         data_versions = ["foobar", "foo"]
         client: MLClient = client
         for version in environment_versions:
@@ -295,7 +287,9 @@ class TestCommandJob(AzureRecordedTestCase):
             ],
         )
         command_job_resource = client.jobs.create_or_update(job=job)
-        client.jobs.cancel(job_name)
+        cancel_poller = client.jobs.begin_cancel(job_name)
+        assert isinstance(cancel_poller, LROPoller)
+        assert cancel_poller.result() is None
 
         # Check that environment resolves to latest version
         assert command_job_resource.environment == f"{environment_name}:{environment_versions[-1]}"
@@ -308,7 +302,7 @@ class TestCommandJob(AzureRecordedTestCase):
     @pytest.mark.e2etest
     @pytest.mark.skip(reason="Task 1791832: Inefficient, causing testing pipeline to time out.")
     def test_command_job_archive_restore(self, randstr: Callable[[], str], client: MLClient) -> None:
-        job_name = randstr("job_name")
+        job_name = randstr()
         print(f"Creating job {job_name}")
 
         params_override = [{"name": job_name}]
@@ -345,7 +339,7 @@ class TestCommandJob(AzureRecordedTestCase):
         job = client.jobs.create_or_update(
             load_job(
                 source="./tests/test_configs/command_job/command_job_quick_with_output.yml",
-                params_override=[{"name": randstr("name")}],
+                params_override=[{"name": randstr()}],
             )
         )
         wait_until_done(job)
@@ -374,7 +368,7 @@ class TestCommandJob(AzureRecordedTestCase):
         job = client.jobs.create_or_update(
             load_job(
                 source="./tests/test_configs/command_job/command_job_quick_with_output.yml",
-                params_override=[{"name": randstr("name")}, {"compute": LOCAL_COMPUTE_TARGET}],
+                params_override=[{"name": randstr()}, {"compute": LOCAL_COMPUTE_TARGET}],
             )
         )
 
@@ -391,7 +385,7 @@ class TestCommandJob(AzureRecordedTestCase):
 
     @pytest.mark.e2etest
     def test_command_job_invalid_datastore(self, randstr: Callable[[], str], client: MLClient) -> None:
-        job_name = randstr("job_name")
+        job_name = randstr()
         invalid_datastore_name = "non-existent-ds"  # referenced in command_job_inputs_incorrect_datastore_test.yml
         params_override = [{"name": job_name}]
         job: CommandJob = load_job(
@@ -403,10 +397,8 @@ class TestCommandJob(AzureRecordedTestCase):
             assert f"The datastore {invalid_datastore_name} could not be found in this workspace" in e
 
     @pytest.mark.e2etest
-    def test_command_job_with_inputs_with_datastore_param(
-        self, randstr: Callable[[str], str], client: MLClient
-    ) -> None:
-        job_name = randstr("job_name")
+    def test_command_job_with_inputs_with_datastore_param(self, randstr: Callable[[], str], client: MLClient) -> None:
+        job_name = randstr()
         params_override = [{"name": job_name}, {"inputs.test1.datastore": "workspaceblobstore"}]
 
         job: CommandJob = load_job(
@@ -417,7 +409,7 @@ class TestCommandJob(AzureRecordedTestCase):
 
     @pytest.mark.e2etest
     def test_command_job_parsing_error(self, randstr: Callable[[], str]) -> None:
-        job_name = randstr("job_name")
+        job_name = randstr()
         params_override = [{"name": job_name}]
 
         with pytest.raises(Exception) as e:
@@ -429,16 +421,15 @@ class TestCommandJob(AzureRecordedTestCase):
 
 
 def check_tid_in_url(client: MLClient, job: Job) -> None:
-    # test that TID is placed in the URL only in live mode
-    if is_live():
-        default_scopes = _resource_to_scopes(_get_base_url_from_metadata())
-        token = client._credential.get_token(*default_scopes).token
-        decode = jwt.decode(token, options={"verify_signature": False, "verify_aud": False})
-        formatted_tid = TID_FMT.format(decode["tid"])
-        if job.services:
-            studio_endpoint = job.services.get("Studio", None)
-            if studio_endpoint:
-                studio_url = studio_endpoint.endpoint
-                assert job.studio_url == studio_url
-                if studio_url:
-                    assert formatted_tid in studio_url
+    # test that TID is placed in the URL
+    default_scopes = _resource_to_scopes(_get_base_url_from_metadata())
+    token = client._credential.get_token(*default_scopes).token
+    decode = jwt.decode(token, options={"verify_signature": False, "verify_aud": False})
+    formatted_tid = TID_FMT.format(decode["tid"])
+    if job.services:
+        studio_endpoint = job.services.get("Studio", None)
+        if studio_endpoint:
+            studio_url = studio_endpoint.endpoint
+            assert job.studio_url == studio_url
+            if studio_url:
+                assert formatted_tid in studio_url

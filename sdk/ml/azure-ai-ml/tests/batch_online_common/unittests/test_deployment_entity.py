@@ -173,8 +173,7 @@ class TestBatchDeploymentSDK:
             assert isinstance(deployment, BatchDeployment)
             assert isinstance(deployment.model, str)
             assert isinstance(deployment.compute, str)
-            # comment out assertion as resources type has changes to JobResourceConfiguration
-            # assert isinstance(deployment.resources, ResourceConfiguration)
+            assert isinstance(deployment.resources, ResourceConfiguration)
             assert deployment.model == "lightgbm_predict:1"
             assert deployment.output_action == BatchDeploymentOutputAction.APPEND_ROW
             assert deployment.max_concurrency_per_instance == target["max_concurrency_per_instance"]

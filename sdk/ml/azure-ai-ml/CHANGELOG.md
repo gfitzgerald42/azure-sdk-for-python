@@ -3,12 +3,16 @@
 ## 0.1.0 (Unreleased)
 
 ### Features Added
+ - Added a `show_progress` parameter to MLClient for enable/disable progress bars of long running operations.
+ - Support passing JobService as argument to Command()
 
 ### Breaking Changes
 
 ### Bugs Fixed
 
 ### Other Changes
+ - Removed declaration on Python 3.6 support
+ - Added support for custom setup scripts on compute instances.
  - Removed declaration on Python 3.6 support.
  - Updated dependencies upper bounds to be major versions.
 
@@ -24,19 +28,22 @@
  - Enable using @dsl.pipeline without brackets when no additional parameters.
  - Expose Azure subscription Id and resource group name from MLClient objects.
  - Added Idle Shutdown support for Compute Instances, allowing instances to shutdown after a set period of inactivity.
+ - JobOperations.cancel() returns a LROPoller.
 
 ### Breaking Changes
  - Change (begin_)create_or_update typehints to use generics.
  - Remove invalid option from create_or_update typehints.
  - Change error returned by (begin_)create_or_update invalid input to TypeError.
  - Rename set_image_model APIs for all vision tasks to set_training_parameters
+ - JobOperations.download no longer provides a default value for download_path
  - JobOperations.download defaults to "." instead of Path.cwd()
+ - Workspace.list_keys renamed to Workspace.get_keys.
+ - JobOperations.cancel() is renamed to JobOperations.begin_cancel() and it returns LROPoller
 
 ### Bugs Fixed
 
 ### Other Changes
  - Show 'properties' on data assets
-
 
 ## 0.1.0b6
 
@@ -70,6 +77,7 @@
 - MIR and pipeline job now support registry assets.
 
 ### Breaking Changes
+- ComputeOperations.attach has been renamed to begin_attach.
 
 ### Bugs Fixed
 
@@ -79,6 +87,7 @@
 - Error message improvement when a YAML UnionField fails to match.
 - Reintroduced support for symlinks when uploading.
 - Hard coded registry base URL to eastus region to support preview.
+- Deprecated parameter path has been removed from load and dump methods.
 
 ## 0.1.0b4 (2022-06-16)
 

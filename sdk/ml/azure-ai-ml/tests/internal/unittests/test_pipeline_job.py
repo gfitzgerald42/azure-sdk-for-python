@@ -359,6 +359,7 @@ class TestPipelineJob:
         scope_node._set_base_path(yaml_path.parent)
         scope_node_dict = scope_node._to_dict()
         assert scope_node_dict == {
+            "$schema": "{}",
             "priority": 800,
             "adla_account_name": "adla_account_name",
             "custom_job_name_suffix": "component_sdk_test",
@@ -429,7 +430,7 @@ class TestPipelineJob:
 
     def test_components_input_output(self):
         yaml_path = "./tests/test_configs/internal/component_with_input_types/component_spec.yaml"
-        component: InternalComponent = load_component(path=yaml_path)
+        component: InternalComponent = load_component(yaml_path)
 
         fake_input = Input(type=AssetTypes.MLTABLE, path="azureml:scope_tsv:1")
         inputs = {
